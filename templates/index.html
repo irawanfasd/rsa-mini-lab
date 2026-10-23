@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab RSA</title>
+<style>
+  :root {
+    --ink: #16212B; --muted: #5B6773; --paper: #F5F7F9; --card: #FFFFFF; --line: #D5DCE3;
+    --learn: #A15C07; --learn-bg: #FBF1DE;
+    --safe: #0B6B57; --safe-bg: #E3F2EE;
+    --bad: #B42318; --bad-bg: #FDECEA;
+    --mono: ui-monospace, "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 16px/1.55 var(--sans); }
+  main { max-width: 820px; margin: 0 auto; padding: 28px 18px 64px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 1.05rem; margin: 0 0 10px; }
+  p.lead { margin: 0 0 22px; color: var(--muted); max-width: 62ch; }
+
+  .tabs { display: flex; gap: 8px; margin-bottom: 18px; }
+  .tab { flex: 1; padding: 12px 14px; text-align: left; background: var(--card); color: var(--ink);
+         border: 1px solid var(--line); border-radius: 10px; cursor: pointer; font: inherit; }
+  .tab small { display: block; color: var(--muted); font-size: .82rem; }
+  .tab[aria-selected="true"][data-mode="learn"] { border-color: var(--learn); background: var(--learn-bg); }
+  .tab[aria-selected="true"][data-mode="safe"]  { border-color: var(--safe);  background: var(--safe-bg); }
+
+  section.panel { display: none; }
+  section.panel.on { display: block; }
+  .banner { padding: 10px 14px; border-radius: 8px; margin-bottom: 18px; font-size: .92rem; }
+  .learn .banner { background: var(--learn-bg); color: #6B3D04; }
+  .safe  .banner { background: var(--safe-bg);  color: #08503F; }
+
+  .step { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 16px; margin-bottom: 14px; }
+  label { display: block; font-size: .88rem; color: var(--muted); margin: 10px 0 4px; }
+  textarea, input, select { width: 100%; font: 0.86rem/1.45 var(--mono); color: var(--ink); background: #FBFCFD;
+         border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+  textarea { min-height: 84px; resize: vertical; }
+  textarea.tall { min-height: 150px; }
+  select { width: auto; font-family: var(--sans); }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  button.go { font: inherit; padding: 8px 16px; border: 0; border-radius: 6px; color: #fff; cursor: pointer; }
+  .learn button.go { background: var(--learn); } .safe button.go { background: var(--safe); }
+  button.go:disabled { opacity: .55; cursor: progress; }
+  button:focus-visible, textarea:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid #2F6FEB; outline-offset: 1px; }
+
+  .chain { margin: 12px 0 0; display: grid; gap: 8px; }
+  .chain div { border-left: 3px solid var(--learn); padding: 2px 0 2px 10px; }
+  .chain b { font-weight: 600; font-size: .9rem; }
+  .chain span.how { color: var(--muted); font-size: .82rem; margin-left: 6px; }
+  .chain code { display: block; font: .78rem/1.4 var(--mono); word-break: break-all; margin-top: 2px; }
+
+  .status { margin-top: 10px; padding: 8px 12px; border-radius: 6px; font-size: .92rem; display: none; }
+  .status.ok { display: block; background: var(--safe-bg); color: #08503F; }
+  .status.err { display: block; background: var(--bad-bg); color: var(--bad); }
+  @media (max-width: 560px) { .tabs { flex-direction: column; } }
+  @media (prefers-reduced-motion: no-preference) { .tab, button.go { transition: background .15s, border-color .15s; } }
+</style>
+</head>
+<body>
+<main>
+  <h1>Lab RSA</h1>
+  <p class="lead">Satu tempat untuk memahami RSA dari rumusnya, lalu memakainya dengan cara yang benar untuk dunia nyata.</p>
+
+  <div class="tabs" role="tablist">
+    <button class="tab" role="tab" data-mode="learn" aria-selected="true">Belajar<small>RSA dibuat dari nol, langkahnya terlihat</small></button>
+    <button class="tab" role="tab" data-mode="safe" aria-selected="false">Aman<small>Library cryptography, siap dipakai</small></button>
+  </div>
+
+  <!-- ============ MODE BELAJAR ============ -->
+  <section class="panel learn on" id="learn">
+    <div class="banner">Ini RSA versi buku teks tanpa padding acak. Cocok untuk memahami cara kerjanya, jangan dipakai untuk data sungguhan.</div>
+
+    <div class="step">
+      <h2>Buat kunci</h2>
+      <div class="row">
+        <label for="l-bits" style="margin:0">Panjang n</label>
+        <select id="l-bits"><option>256</option><option selected>512</option><option>768</option><option>1024</option></select>
+        <button class="go" id="l-gen">Buat kunci</button>
+      </div>
+      <div class="chain" id="l-chain" hidden>
+        <div><b>p dan q</b><span class="how">dua prima acak, diuji dengan Miller-Rabin</span><code id="c-p"></code><code id="c-q"></code></div>
+        <div><b>n = p × q</b><span class="how">modulus, dipakai kunci publik dan privat</span><code id="c-n"></code></div>
+        <div><b>φ(n) = (p−1)(q−1)</b><span class="how">jumlah bilangan yang saling prima dengan n</span><code id="c-phi"></code></div>
+        <div><b>e</b><span class="how">eksponen publik, gcd(e, φ) = 1</span><code id="c-e"></code></div>
+        <div><b>d = e⁻¹ mod φ</b><span class="how">eksponen privat, dihitung dengan Extended Euclid</span><code id="c-d"></code></div>
+      </div>
+      <div class="status" id="l-gen-st"></div>
+    </div>
+
+    <div class="step">
+      <h2>Enkripsi: c = mᵉ mod n</h2>
+      <label for="l-n">n (hex)</label><textarea id="l-n" class="tall" spellcheck="false"></textarea>
+      <label for="l-e">e (hex)</label><input id="l-e" spellcheck="false">
+      <label for="l-plain">Teks asli</label><textarea id="l-plain">Halo RSA!</textarea>
+      <div class="row" style="margin-top:10px"><button class="go" id="l-enc">Enkripsi</button></div>
+      <label for="l-cipher">Ciphertext (blok heksadesimal dipisah titik)</label><textarea id="l-cipher" class="tall" spellcheck="false"></textarea>
+      <div class="status" id="l-enc-st"></div>
+    </div>
+
+    <div class="step">
+      <h2>Dekripsi: m = cᵈ mod n</h2>
+      <label for="l-d">d (hex, kunci privat)</label><textarea id="l-d" class="tall" spellcheck="false"></textarea>
+      <div class="row" style="margin-top:10px"><button class="go" id="l-dec">Dekripsi ciphertext di atas</button></div>
+      <label for="l-out">Hasil</label><textarea id="l-out" readonly></textarea>
+      <div class="status" id="l-dec-st"></div>
+    </div>
+  </section>
+
+  <!-- ============ MODE AMAN ============ -->
+  <section class="panel safe" id="safe">
+    <div class="banner">RSA-OAEP + AES-GCM (hibrida) untuk enkripsi, RSA-PSS untuk tanda tangan. Kunci privat tidak disimpan di server, simpan sendiri dan akses situs ini lewat HTTPS.</div>
+
+    <div class="step">
+      <h2>Kunci</h2>
+      <div class="row">
+        <label for="s-bits" style="margin:0">Panjang kunci</label>
+        <select id="s-bits"><option>2048</option><option selected>3072</option><option>4096</option></select>
+        <button class="go" id="s-gen">Buat pasangan kunci</button>
+      </div>
+      <label for="s-pub">Kunci publik (boleh dibagikan)</label><textarea id="s-pub" class="tall" spellcheck="false"></textarea>
+      <label for="s-priv">Kunci privat (rahasiakan)</label><textarea id="s-priv" class="tall" spellcheck="false"></textarea>
+      <div class="status" id="s-gen-st"></div>
+    </div>
+
+    <div class="step">
+      <h2>Enkripsi dan dekripsi</h2>
+      <label for="s-plain">Teks asli</label><textarea id="s-plain">Pesan rahasia untuk tugas RSA.</textarea>
+      <div class="row" style="margin-top:10px">
+        <button class="go" id="s-enc">Enkripsi dengan kunci publik</button>
+        <button class="go" id="s-dec">Dekripsi dengan kunci privat</button>
+      </div>
+      <label for="s-cipher">Ciphertext (base64)</label><textarea id="s-cipher" class="tall" spellcheck="false"></textarea>
+      <div class="status" id="s-enc-st"></div>
+    </div>
+
+    <div class="step">
+      <h2>Tanda tangan digital</h2>
+      <p style="margin:0;color:var(--muted);font-size:.9rem">Menandatangani teks asli di atas membuktikan pesan berasal dari pemilik kunci privat dan tidak diubah.</p>
+      <div class="row" style="margin-top:10px">
+        <button class="go" id="s-sign">Tanda tangani</button>
+        <button class="go" id="s-ver">Verifikasi</button>
+      </div>
+      <label for="s-sig">Tanda tangan (base64)</label><textarea id="s-sig" class="tall" spellcheck="false"></textarea>
+      <div class="status" id="s-sig-st"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+async function post(url, body) {
+  const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || "permintaan gagal");
+  return data;
+}
+function show(stId, msg, ok) {
+  const el = $(stId); el.textContent = msg; el.className = "status " + (ok ? "ok" : "err");
+}
+function run(btnId, stId, fn) {
+  $(btnId).addEventListener("click", async (ev) => {
+    const btn = ev.currentTarget; btn.disabled = true; $(stId).className = "status";
+    try { await fn(); } catch (e) { show(stId, e.message, false); } finally { btn.disabled = false; }
+  });
+}
+
+/* tabs */
+document.querySelectorAll(".tab").forEach((t) => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach((x) => x.setAttribute("aria-selected", x === t));
+  document.querySelectorAll(".panel").forEach((p) => p.classList.toggle("on", p.id === t.dataset.mode));
+}));
+
+/* ---- mode belajar ---- */
+run("l-gen", "l-gen-st", async () => {
+  const k = await post("/api/scratch/keygen", { bits: +$("l-bits").value });
+  for (const f of ["p", "q", "n", "phi", "e", "d"]) $("c-" + f).textContent = k[f];
+  $("l-chain").hidden = false;
+  $("l-n").value = k.n; $("l-e").value = k.e; $("l-d").value = k.d;
+  show("l-gen-st", `Kunci ${k.bits} bit siap. Nilai n, e, dan d sudah terisi di bawah.`, true);
+});
+run("l-enc", "l-enc-st", async () => {
+  const r = await post("/api/scratch/encrypt", { text: $("l-plain").value, n: $("l-n").value, e: $("l-e").value });
+  $("l-cipher").value = r.cipher;
+  show("l-enc-st", `Terenkripsi menjadi ${r.blocks} blok.`, true);
+});
+run("l-dec", "l-dec-st", async () => {
+  const r = await post("/api/scratch/decrypt", { cipher: $("l-cipher").value, n: $("l-n").value, d: $("l-d").value });
+  $("l-out").value = r.text;
+  show("l-dec-st", "Berhasil didekripsi.", true);
+});
+
+/* ---- mode aman ---- */
+run("s-gen", "s-gen-st", async () => {
+  const k = await post("/api/secure/keygen", { bits: +$("s-bits").value });
+  $("s-pub").value = k.public_key; $("s-priv").value = k.private_key;
+  show("s-gen-st", `Pasangan kunci RSA-${k.bits} dibuat. Salin dan simpan kunci privat sekarang, server tidak menyimpannya.`, true);
+});
+run("s-enc", "s-enc-st", async () => {
+  const r = await post("/api/secure/encrypt", { text: $("s-plain").value, public_key: $("s-pub").value });
+  $("s-cipher").value = r.cipher;
+  show("s-enc-st", "Terenkripsi. Hasil berbeda setiap kali karena padding OAEP acak.", true);
+});
+run("s-dec", "s-enc-st", async () => {
+  const r = await post("/api/secure/decrypt", { cipher: $("s-cipher").value, private_key: $("s-priv").value });
+  $("s-plain").value = r.text;
+  show("s-enc-st", "Berhasil didekripsi, hasilnya ada di kolom teks asli.", true);
+});
+run("s-sign", "s-sig-st", async () => {
+  const r = await post("/api/secure/sign", { text: $("s-plain").value, private_key: $("s-priv").value });
+  $("s-sig").value = r.signature;
+  show("s-sig-st", "Teks asli telah ditandatangani.", true);
+});
+run("s-ver", "s-sig-st", async () => {
+  const r = await post("/api/secure/verify", { text: $("s-plain").value, signature: $("s-sig").value, public_key: $("s-pub").value });
+  show("s-sig-st", r.valid ? "Tanda tangan valid: teks tidak berubah dan cocok dengan kunci publik." : "Tanda tangan TIDAK valid: teks berubah atau kunci tidak cocok.", r.valid);
+});
+</script>
+</body>
+</html>
